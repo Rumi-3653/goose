@@ -43,6 +43,14 @@ pub struct SkillFrontmatter {
     pub metadata: HashMap<String, Value>,
 }
 
+/// `GOOSE_DISABLE_SKILLS=1|true` skips every skill directory scan and the
+/// built-in skills, and keeps skills out of the system prompt and tool list.
+pub fn skills_disabled() -> bool {
+    std::env::var("GOOSE_DISABLE_SKILLS")
+        .map(|v| matches!(v.trim().to_ascii_lowercase().as_str(), "1" | "true"))
+        .unwrap_or(false)
+}
+
 /// Canonical writable location for global user skills: `~/.agents/skills`.
 pub fn global_skills_dir() -> Option<PathBuf> {
     dirs::home_dir().map(|h| h.join(".agents").join("skills"))
@@ -369,6 +377,9 @@ struct SkillDirectory {
 }
 
 fn all_skill_dirs_with_config(working_dir: Option<&Path>, config: &Config) -> Vec<SkillDirectory> {
+    if skills_disabled() {
+        return Vec::new();
+    }
     let mut dirs = Vec::new();
     let plugin_dirs = enabled_plugin_skill_dirs_with_config(working_dir, config);
 
@@ -611,6 +622,9 @@ pub fn discover_skills(working_dir: Option<&Path>) -> Vec<SourceEntry> {
 }
 
 fn discover_skills_with_config(working_dir: Option<&Path>, config: &Config) -> Vec<SourceEntry> {
+    if skills_disabled() {
+        return Vec::new();
+    }
     let mut sources: Vec<SourceEntry> = Vec::new();
     let mut seen = HashSet::new();
 
@@ -658,6 +672,19 @@ pub fn list_installed_skills(working_dir: Option<&Path>) -> Vec<SourceEntry> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    #[serial_test::serial]
+    fn disable_skills_env_skips_discovery_and_builtins() {
+        std::env::set_var("GOOSE_DISABLE_SKILLS", "1");
+        let found = discover_skills(None);
+        let dirs = all_skill_dirs(None);
+        std::env::remove_var("GOOSE_DISABLE_SKILLS");
+
+        assert!(found.is_empty());
+        assert!(dirs.is_empty());
+        assert!(!discover_skills(None).is_empty());
+    }
     use serde_json::json;
 
     fn write_test_skill(dir: &Path, name: &str, body: &str) {

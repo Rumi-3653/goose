@@ -304,6 +304,9 @@ impl Operation<Session, GooseEffect> for SkillOperation {
     }
 
     async fn inference_tools(&self, _session: &Session) -> Result<Vec<Tool>> {
+        if crate::skills::skills_disabled() {
+            return Ok(Vec::new());
+        }
         Ok(vec![skill_tool()?])
     }
 
@@ -312,6 +315,9 @@ impl Operation<Session, GooseEffect> for SkillOperation {
         session: &Session,
         _conversation: &Conversation,
     ) -> Result<Vec<(String, String)>> {
+        if crate::skills::skills_disabled() {
+            return Ok(Vec::new());
+        }
         Ok(skill_instructions(&session.working_dir)
             .map(|instructions| ("skills".to_string(), instructions))
             .into_iter()
